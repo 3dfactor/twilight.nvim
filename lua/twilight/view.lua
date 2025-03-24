@@ -90,6 +90,35 @@ function M.range(node)
   return from, to
 end
 
+-- function M.get_node(buf, line)
+--   local lines = vim.api.nvim_buf_get_lines(buf, line, line + 1, false)
+--   local col = lines[1] and (#lines[1] - 1) or 0
+--   if col < 0 then
+--     col = 0
+--   end
+--
+--   local parser = vim.treesitter.get_parser(buf)
+--   local ret
+--   parser:for_each_tree(function(tree)
+--     if ret then
+--       return
+--     end
+--     local root = tree:root()
+--     if root then
+--       local node = root:descendant_for_range(line, col, line, col)
+--       local parent = node:parent()
+--       while parent and (parent:start() == line or parent:end_() == line) do
+--         node = parent
+--         parent = node:parent()
+--       end
+--       if node and node ~= root then
+--         ret = node
+--       end
+--     end
+--   end)
+--   return ret
+-- end
+
 function M.get_node(buf, line)
   local lines = vim.api.nvim_buf_get_lines(buf, line, line + 1, false)
   local col = lines[1] and (#lines[1] - 1) or 0
@@ -98,25 +127,32 @@ function M.get_node(buf, line)
   end
 
   local parser = vim.treesitter.get_parser(buf)
-  local ret
-  parser:for_each_tree(function(tree)
-    if ret then
-      return
-    end
-    local root = tree:root()
-    if root then
-      local node = root:descendant_for_range(line, col, line, col)
-      local parent = node:parent()
-      while parent and (parent:start() == line or parent:end_() == line) do
-        node = parent
-        parent = node:parent()
-      end
-      if node and node ~= root then
-        ret = node
-      end
-    end
-  end)
-  return ret
+  -- Get the language tree at the cursor position
+  local lang_tree = parser:language_for_range({ line, col, line, col })
+  if not lang_tree then
+    return nil
+  end
+
+  -- Parse the specific language tree (e.g., typescript)
+  local tree = lang_tree:parse()[1]
+  if not tree then
+    return nil
+  end
+
+  local root = tree:root()
+  local node = root:descendant_for_range(line, col, line, col)
+  if not node or node == root then
+    return nil
+  end
+
+  -- Walk up to avoid overly granular nodes on the same line
+  local parent = node:parent()
+  while parent and (parent:start() == line or parent:end_() == line) do
+    node = parent
+    parent = node:parent()
+  end
+
+  return node
 end
 
 function M.is_empty(buf, line)
