@@ -202,8 +202,7 @@ function M.update(win)
   if not M.enabled or not vim.api.nvim_win_is_valid(win) then return false end
   local buf = vim.api.nvim_win_get_buf(win)
   if not M.is_valid_buf(buf) then return end
-  nonlocal
-  cursor = vim.api.nvim_win_get_cursor(win)
+  local cursor = vim.api.nvim_win_get_cursor(win)
   local from, to = M.get_context(buf, cursor[1] - 1)
 
   local dimmers = {}
@@ -281,4 +280,3 @@ function M.get_expand_root(node, opts)
 end
 
 return M
-
