@@ -203,34 +203,55 @@ function M.get_context(buf, line)
   if config.options.treesitter and pcall(vim.treesitter.get_parser, buf) then
     local node = M.get_node(buf, line)
     local root = M.get_expand_root(node)
+    local from, to
     if root then
-      local from, to = M.range(root)
-      return from + 1, to + 2
-    end
-    local from, to = M.expand(buf, line, line, line)
-
-    while to - from < config.options.context do
-      local pf, pt, pnode = M.expand(buf, from, to, from - 1)
-      local nf, nt, nnode = M.expand(buf, from, to, to + 1)
-
-      local mp = math.max(line - pf, pt - line)
-      local mn = math.max(line - nf, nt - line)
-
-      if (mp < mn) and not (from == pf and to == pt) then
-        from = pf
-        to = pt
-        if pnode and M.get_expand_root(pnode) then
+      from, to = M.range(root)
+      -- Expand to context size if root is smaller
+      while to - from + 1 < config.options.context do
+        local pf, pt, pnode = M.expand(buf, from, to, from - 1)
+        local nf, nt, nnode = M.expand(buf, from, to, to + 1)
+        if (pf < from or pt > to) and not (pf == from and pt == to) then
+          from, to = pf, pt
+        elseif (nf < from or nt > to) and not (nf == from and nt == to) then
+          from, to = nf, nt
+        else
           break
         end
-      elseif not (from == nf and to == nt) then
-        from = nf
-        to = nt
-        if nnode and M.get_expand_root(nnode) then
-          break
-        end
-      else
-        break
       end
+    else
+      from, to = M.expand(buf, line, line, line)
+      while to - from < config.options.context do
+        local pf, pt, pnode = M.expand(buf, from, to, from - 1)
+        local nf, nt, nnode = M.expand(buf, from, to, to + 1)
+        local mp = math.max(line - pf, pt - line)
+        local mn = math.max(line - nf, nt - line)
+        if (mp < mn) and not (from == pf and to == pt) then
+          from = pf
+          to = pt
+          if pnode and M.get_expand_root(pnode) then break end
+        elseif not (from == nf and to == nt) then
+          from = nf
+          to = nt
+          if nnode and M.get_expand_root(nnode) then break end
+        else
+          break
+        end
+      end
+    end
+
+    if config.options.debug then
+      local lang = vim.treesitter.get_parser(buf):language_for_range({ line, 0, line, 0 }):lang()
+      vim.notify(
+        string.format(
+          "Twilight Debug:\nNode: %s\nLanguage: %s\nRange: %d-%d (%d lines)",
+          root and root:type() or "none",
+          lang,
+          from + 1,
+          to + 1,
+          to - from + 1
+        ),
+        vim.log.levels.INFO
+      )
     end
 
     return from + 1, to + 2
